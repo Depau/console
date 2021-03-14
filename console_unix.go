@@ -96,7 +96,6 @@ func (m *master) SetRaw() error {
 		return err
 	}
 	rawState = cfmakeraw(rawState)
-	rawState.Oflag = rawState.Oflag | unix.OPOST
 	return tcset(m.f.Fd(), &rawState)
 }
 
