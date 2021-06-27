@@ -1,4 +1,4 @@
-// +build darwin freebsd linux netbsd openbsd solaris
+// +build zos
 
 /*
    Copyright The containerd Authors.
@@ -19,6 +19,9 @@
 package console
 
 import (
+	"fmt"
+	"os"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -26,16 +29,20 @@ import (
 // The master is returned as the first console and a string
 // with the path to the pty slave is returned as the second
 func NewPty() (Console, string, error) {
-	f, err := openpt()
-	if err != nil {
-		return nil, "", err
-	}
-	slave, err := ptsname(f)
-	if err != nil {
-		return nil, "", err
-	}
-	if err := unlockpt(f); err != nil {
-		return nil, "", err
+	var f File
+	var err error
+	var slave string
+	for i := 0;; i++ {
+		ptyp := fmt.Sprintf("/dev/ptyp%04d", i)
+		f, err = os.OpenFile(ptyp, os.O_RDWR, 0600)
+		if err == nil {
+			slave = fmt.Sprintf("/dev/ttyp%04d", i)
+			break
+		}
+		if os.IsNotExist(err) {
+			return nil, "", err
+		}
+		// else probably Resource Busy
 	}
 	m, err := newMaster(f)
 	if err != nil {
@@ -94,6 +101,7 @@ func (m *master) SetRaw() error {
 		return err
 	}
 	rawState = cfmakeraw(rawState)
+	rawState.Oflag = rawState.Oflag | unix.OPOST
 	return tcset(m.f.Fd(), &rawState)
 }
 
